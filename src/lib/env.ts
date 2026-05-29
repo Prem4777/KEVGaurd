@@ -5,7 +5,7 @@ const envSchema = z.object({
   GEMINI_API_KEY: z.string().min(1).optional(),
   GEMINI_MODEL: z.string().min(1).default("gemini-2.0-flash"),
   CORAL_BRIDGE_URL: z.string().url().optional(),
-  CORAL_BRIDGE_TOKEN: z.string().min(1).optional(),
+  CORAL_BRIDGE_TOKEN: z.string().optional(),
 });
 
 const parsedEnv = envSchema.safeParse({

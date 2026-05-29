@@ -4,8 +4,13 @@ import { useEffect, useRef, useState } from "react";
 import type React from "react";
 
 import { AISummary } from "@/components/kevguard/AISummary";
+import { ExportButton } from "@/components/kevguard/ExportButton";
 import { RiskBreakdown } from "@/components/kevguard/RiskBreakdown";
+import { ScanComparison } from "@/components/kevguard/ScanComparison";
+import { ScoreTooltip } from "@/components/kevguard/ScoreTooltip";
 import { Sidebar } from "@/components/kevguard/Sidebar";
+import type { SidebarTab } from "@/components/kevguard/Sidebar";
+import { SqlLogPanel } from "@/components/kevguard/SqlLogPanel";
 import { VulnerabilityCard } from "@/components/kevguard/VulnerabilityCard";
 import type { FindingsMap, RecentScan, ScanResult } from "@/components/kevguard/types";
 import { computeMetrics, initialChatAnswer } from "@/components/kevguard/utils";
@@ -39,9 +44,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimitWarning, setRateLimitWarning] = useState<string | null>(null);
   const [recentScans, setRecentScans] = useState<RecentScan[]>([]);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanStage, setScanStage] = useState("");
+  const [activeTab, setActiveTab] = useState<SidebarTab>("dashboard");
   const progressTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   async function loadRecentScans() {
@@ -90,6 +97,7 @@ export default function HomePage() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setRateLimitWarning(null);
 
     try {
       const res = await fetch("/api/scan", {
@@ -135,8 +143,9 @@ export default function HomePage() {
           if (!dataLine) continue;
 
           if (eventType === "result") {
-            const data = JSON.parse(dataLine) as ScanResult;
+            const data = JSON.parse(dataLine) as ScanResult & { rateLimitWarning?: string };
             setResult(data);
+            if (data.rateLimitWarning) setRateLimitWarning(data.rateLimitWarning);
             await loadRecentScans();
             break outer;
           }
@@ -159,6 +168,7 @@ export default function HomePage() {
   function resetToStart() {
     setResult(null);
     setError(null);
+    setRateLimitWarning(null);
     setScanProgress(0);
     setScanStage("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -172,9 +182,17 @@ export default function HomePage() {
   return (
     <div className="flex min-h-screen bg-[#060e18] text-[#d4e4fa]">
       {/* ── Sidebar ── */}
-      <Sidebar onNewScan={resetToStart} />
+      <Sidebar onNewScan={resetToStart} active={activeTab} onTabChange={setActiveTab} />
+
+      {/* ── SQL Log panel (replaces main canvas when active) ── */}
+      {activeTab === "sql-log" && (
+        <div className="ml-60 flex flex-1 flex-col min-h-screen bg-[#060e18]">
+          <SqlLogPanel />
+        </div>
+      )}
 
       {/* ── Main canvas ── */}
+      {activeTab === "dashboard" && (
       <div className="ml-60 flex flex-1 flex-col">
 
         {/* ════════════════════════════════════════════════════════════
@@ -413,11 +431,32 @@ export default function HomePage() {
                 <div className="flex items-center gap-2">
                   <span className="h-1.5 w-1.5 rounded-full bg-[#45dfa4]" />
                   <span className="font-mono text-[11px] text-white/30">Scan complete</span>
+                  <ExportButton repo={repoName} findings={findings} metrics={metrics} />
                 </div>
               </div>
             </div>
 
             <div className="px-8 py-8">
+
+              {/* ── Cache / rate-limit banners ── */}
+              {result?.cachedSha && (
+                <div className="mb-6 flex items-center gap-2 rounded-lg border border-[#45dfa4]/20 bg-[#45dfa4]/5 px-4 py-2.5">
+                  <svg className="h-4 w-4 shrink-0 text-[#45dfa4]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="font-mono text-[12px] text-[#45dfa4]/80">
+                    Cached result — this commit was already scanned. No new scan was run.
+                  </p>
+                </div>
+              )}
+              {rateLimitWarning && (
+                <div className="mb-6 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5">
+                  <svg className="h-4 w-4 shrink-0 text-amber-400/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                  <p className="font-mono text-[12px] text-amber-400/80">{rateLimitWarning}</p>
+                </div>
+              )}
 
               {/* ── Section 1: Repo header + stat cards ── */}
               <div className="mb-8">
@@ -438,6 +477,7 @@ export default function HomePage() {
                     value={`${metrics.securityScore}`}
                     sub="/ 100"
                     tone={metrics.securityScore < 60 ? "danger" : metrics.securityScore < 80 ? "warn" : "good"}
+                    tooltip={<ScoreTooltip metrics={metrics} />}
                     icon={
                       <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
@@ -514,9 +554,9 @@ export default function HomePage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {sortedVulns.map(({ dep, vuln }) => (
+                      {sortedVulns.map(({ dep, vuln }, idx) => (
                         <VulnerabilityCard
-                          key={`${dep}-${vuln.id}-${vuln.fixed_in ?? "na"}`}
+                          key={`${dep}-${vuln.id}-${vuln.fixed_in ?? "na"}-${idx}`}
                           dependency={dep}
                           vuln={vuln}
                         />
@@ -549,6 +589,12 @@ export default function HomePage() {
                     </p>
                     <RiskBreakdown breakdown={metrics.riskBreakdown} />
                   </div>
+
+                  {/* Scan comparison */}
+                  <ScanComparison
+                    currentFindings={findings}
+                    currentScanId={result.scanId}
+                  />
                 </div>
               </div>
 
@@ -574,6 +620,7 @@ export default function HomePage() {
           </footer>
         )}
       </div>
+      )} {/* end activeTab === "dashboard" */}
     </div>
   );
 }
@@ -594,12 +641,14 @@ function StatCard({
   sub,
   tone,
   icon,
+  tooltip,
 }: {
   label: string;
   value: string;
   sub?: string;
   tone: Tone;
   icon: React.ReactNode;
+  tooltip?: React.ReactNode;
 }) {
   const s = toneStyles[tone];
   return (
@@ -611,7 +660,10 @@ function StatCard({
         </span>
         {sub && <span className="text-[14px] text-white/30">{sub}</span>}
       </div>
-      <p className="mt-2 font-mono text-[11px] uppercase tracking-widest text-white/30">{label}</p>
+      <div className="mt-2 flex items-center gap-1">
+        <p className="font-mono text-[11px] uppercase tracking-widest text-white/30">{label}</p>
+        {tooltip}
+      </div>
     </div>
   );
 }

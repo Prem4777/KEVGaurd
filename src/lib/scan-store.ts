@@ -9,6 +9,10 @@ export type PersistedFinding = {
   severity: string;
   summary: string;
   fix: string;
+  affectedVersions?: string | null;
+  advisoryUrl?: string | null;
+  epssScore?: number | null;
+  isDirect?: boolean;
 };
 
 export type ScanJob = {
@@ -17,12 +21,15 @@ export type ScanJob = {
   owner: string;
   repo: string;
   branch?: string | null;
+  commitSha?: string | null;
   status: ScanStatus;
   createdAt: string;
 };
 
 const jobs = new Map<string, ScanJob>();
 const findingsByJob = new Map<string, PersistedFinding[]>();
+/** commitSha → scanJobId for cache hits */
+const shaIndex = new Map<string, string>();
 
 function makeId() {
   return (
@@ -36,6 +43,7 @@ export async function createScanJob(input: {
   owner: string;
   repo: string;
   branch?: string | null;
+  commitSha?: string | null;
 }) {
   const job: ScanJob = {
     id: makeId(),
@@ -43,6 +51,7 @@ export async function createScanJob(input: {
     owner: input.owner,
     repo: input.repo,
     branch: input.branch ?? null,
+    commitSha: input.commitSha ?? null,
     status: "scanning",
     createdAt: new Date().toISOString(),
   };
@@ -53,7 +62,10 @@ export async function createScanJob(input: {
 
 export async function completeScanJob(scanJobId: string) {
   const job = jobs.get(scanJobId);
-  if (job) job.status = "completed";
+  if (job) {
+    job.status = "completed";
+    if (job.commitSha) shaIndex.set(job.commitSha, job.id);
+  }
 }
 
 export async function failScanJob(scanJobId: string) {
@@ -67,10 +79,7 @@ export async function saveScanFindings(
 ) {
   if (findings.length === 0) return;
   const existing = findingsByJob.get(scanJobId) ?? [];
-  findingsByJob.set(scanJobId, [
-    ...existing,
-    ...findings.map((finding) => ({ ...finding })),
-  ]);
+  findingsByJob.set(scanJobId, [...existing, ...findings.map((f) => ({ ...f }))]);
 }
 
 export async function listRecentScans(limit = 10) {
@@ -79,11 +88,8 @@ export async function listRecentScans(limit = 10) {
   );
   return sortedJobs.slice(0, limit).map((job) => {
     const jobFindings = findingsByJob.get(job.id) ?? [];
-    const vulnerableDependencies = new Set(
-      jobFindings.map((finding) => finding.packageName),
-    );
-    const kevCount = jobFindings.filter((finding) => finding.kevStatus).length;
-
+    const vulnerableDependencies = new Set(jobFindings.map((f) => f.packageName));
+    const kevCount = jobFindings.filter((f) => f.kevStatus).length;
     return {
       ...job,
       findingsCount: jobFindings.length,
@@ -95,10 +101,14 @@ export async function listRecentScans(limit = 10) {
 
 export async function getScanById(scanId: string) {
   const job = jobs.get(scanId);
-
   if (!job) return null;
-
   const findings = findingsByJob.get(scanId) ?? [];
-
   return { job, findings };
+}
+
+/** Returns a completed scan for the same commit SHA, or null (cache miss). */
+export async function findScanByCommitSha(commitSha: string) {
+  const jobId = shaIndex.get(commitSha);
+  if (!jobId) return null;
+  return getScanById(jobId);
 }

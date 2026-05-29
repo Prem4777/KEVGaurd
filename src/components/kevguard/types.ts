@@ -4,6 +4,10 @@ export type VulnItem = {
   summary?: string | null;
   severity?: string | null | { type?: string; score?: number };
   fixed_in?: string | null;
+  affectedVersions?: string | null;
+  advisoryUrl?: string | null;
+  epssScore?: number | null;
+  isDirect?: boolean;
   references?: Array<{ url: string; type?: string }>;
   kev?: boolean;
 };
@@ -15,6 +19,7 @@ export type RecentScan = {
   repositoryUrl: string;
   owner: string;
   repo: string;
+  commitSha?: string | null;
   status: string;
   createdAt: string;
   findingsCount: number;
@@ -27,6 +32,7 @@ export type ScanResult = {
   repo: string;
   findings: FindingsMap;
   summary: string | null;
+  cachedSha?: string | null;
 };
 
 export type DashboardMetrics = {

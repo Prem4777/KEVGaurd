@@ -1,18 +1,22 @@
 "use client";
 
+export type SidebarTab = "dashboard" | "sql-log";
+
 type Props = {
   onNewScan?: () => void;
-  active?: "dashboard";
+  active?: SidebarTab;
+  onTabChange?: (tab: SidebarTab) => void;
 };
 
-export function Sidebar({ onNewScan, active = "dashboard" }: Props) {
-  const navItems = [
+export function Sidebar({ onNewScan, active = "dashboard", onTabChange }: Props) {
+  const navItems: { id: SidebarTab; label: string; icon: React.ReactNode }[] = [
     { id: "dashboard", label: "Dashboard", icon: <DashboardIcon /> },
-  ] as const;
+    { id: "sql-log",   label: "SQL Log",   icon: <SqlIcon /> },
+  ];
 
   return (
     <aside className="fixed left-0 top-0 z-50 flex h-screen w-60 flex-col border-r border-white/6 bg-[#07111c]">
-      {/* New Scan CTA — top */}
+      {/* New Scan CTA */}
       <div className="px-4 pb-3 pt-5">
         <button
           onClick={onNewScan}
@@ -44,6 +48,7 @@ export function Sidebar({ onNewScan, active = "dashboard" }: Props) {
             return (
               <li key={item.id}>
                 <button
+                  onClick={() => onTabChange?.(item.id)}
                   className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] transition-colors ${
                     isActive
                       ? "bg-white/8 text-white"
@@ -71,13 +76,15 @@ function DashboardIcon() {
     </svg>
   );
 }
-function ShieldIcon() {
+
+function SqlIcon() {
   return (
     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125m16.5 2.625c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125" />
     </svg>
   );
 }
+
 function PlusIcon() {
   return (
     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -85,3 +92,6 @@ function PlusIcon() {
     </svg>
   );
 }
+
+// React import needed for JSX in type annotation
+import type React from "react";
