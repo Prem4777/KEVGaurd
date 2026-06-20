@@ -1,0 +1,18 @@
+{
+  "css.validate": false,
+  "scss.validate": false,
+  "less.validate": false,
+  "css.lint.unknownAtRules": "ignore",
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "tailwindCSS.includeLanguages": {
+    "javascript": "javascript",
+    "javascriptreact": "javascriptreact"
+  },
+  "tailwindCSS.rootFontSize": 16,
+  "tailwindCSS.experimental.configFile": "frontend/tailwind.config.js",
+  "editor.quickSuggestions": {
+    "strings": true
+  }
+}
