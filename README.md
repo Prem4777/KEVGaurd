@@ -128,20 +128,8 @@ npm run dev
 
 ## Output
 
-### Landing — scan input
-![Landing page](docs/screenshots/landing.png)
-
-### Scanning — live process log
-![Scanning state](docs/screenshots/scanning.png)
-
 ### Report — security score + vulnerability list
 ![Security report](docs/screenshots/report.png)
-
-### Vulnerability detail — CVE, EPSS, remediation
-![Vulnerability card expanded](docs/screenshots/vuln-detail.png)
-
-### AI summary + risk breakdown
-![AI summary panel](docs/screenshots/ai-summary.png)
 
 ### SQL log — every Coral query auditable
 ![SQL log](docs/screenshots/sql-log.png)
