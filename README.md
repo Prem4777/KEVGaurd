@@ -1,4 +1,4 @@
-# KEVGuard AI
+# KEVGuard
 
 An AI-powered dependency security scanner for GitHub repositories. Paste a repo URL, get a full vulnerability report in seconds — powered by Coral's cross-source SQL intelligence.
 
@@ -25,16 +25,25 @@ The result is a consolidated security report showing:
 Coral is the intelligence core of KEVGuard. Rather than calling OSV, CISA KEV, and GitHub as separate APIs and joining the data manually, KEVGuard routes everything through a single Coral MCP bridge using a SQL cross-join:
 
 ```sql
-SELECT o.id, o.summary, o.severity, k.cve_id, k.date_added
-FROM osv.vulnerabilities o
-LEFT JOIN cisa.kev k ON o.aliases @> ARRAY[k.cve_id]
-WHERE o.affected_package = $1
+SELECT v.id, v.summary, v.severity, v.affected, v.references, v.aliases,
+       k.cve_id          AS kev_cve_id,
+       k.vulnerability_name AS kev_name,
+       k.date_added      AS kev_date_added,
+       k.required_action AS kev_required_action
+FROM osv.query_by_version v
+LEFT JOIN cisa_kev.vulnerabilities k
+  ON v.aliases LIKE '%' || k.cve_id || '%'
+WHERE v.package_name = 'lodash'
+  AND v.ecosystem    = 'npm'
+  AND v.version      = '4.17.21'
+LIMIT 50
 ```
 
 This means:
+
 - One query replaces three API calls
 - KEV exploitation status is joined at the data layer, not in application code
-- The full query is logged and auditable via the SQL Log in the UI
+- The full query is logged and auditable via the SQL Log tab in the UI
 - Results are deterministic and reproducible
 
 Every finding in a KEVGuard report can be traced back to a single Coral query.
@@ -45,19 +54,19 @@ Every finding in a KEVGuard report can be traced back to a single Coral query.
 
 | Layer | Technology |
 |---|---|
-| Frontend | Next.js (App Router), TypeScript, Tailwind CSS |
+| Frontend | React, Tailwind CSS |
+| Backend | FastAPI (Python) |
 | AI | Gemini API — plain-English triage summaries |
 | Intelligence core | Coral MCP — OSV + CISA KEV cross-join |
 | Severity fallback | NVD API — fills missing CVSS scores |
 | Exploit probability | EPSS (first.org) — 30-day exploitation likelihood |
-
 
 ---
 
 ## How it works
 
 1. User submits a GitHub repository URL
-2. Coral fetches the dependency manifest from GitHub
+2. Coral fetches the dependency manifest from GitHub (`package.json`, `requirements.txt`, `go.mod`, `Cargo.lock`, `pom.xml`)
 3. A single Coral SQL cross-join queries OSV for vulnerabilities and CISA KEV for active exploitation status simultaneously
 4. NVD fills in any CVSS scores that OSV does not have
 5. Each CVE gets an EPSS score from first.org
@@ -66,10 +75,61 @@ Every finding in a KEVGuard report can be traced back to a single Coral query.
 
 ---
 
+## Getting started
+
+### Prerequisites
+
+- Node.js 18+
+- Python 3.11+
+- Coral MCP binary (WSL: `/root/.local/bin/coral`)
+
+### Setup
+
+```bash
+# 1. Clone
+git clone https://github.com/Prem4777/KEVGaurd.git
+cd KEVGaurd
+
+# 2. Backend dependencies
+cd backend
+pip install -r requirements.txt
+cp .env.example .env
+# Add your GEMINI_API_KEY to .env
+
+# 3. Frontend dependencies
+cd ../frontend
+npm install
+```
+
+### Running
+
+Double-click `start.bat` — it opens three terminals:
+
+| Terminal | Service | URL |
+|---|---|---|
+| Coral Bridge | `node scripts/coral-bridge.mjs` | http://127.0.0.1:8787 |
+| API | `uvicorn app.main:app --reload` | http://127.0.0.1:8000 |
+| App | `npm run dev` | http://localhost:5173 |
+
+Or start manually:
+
+```bash
+# Terminal 1 — from repo root
+node scripts/coral-bridge.mjs
+
+# Terminal 2 — from backend/
+uvicorn app.main:app --reload --port 8000
+
+# Terminal 3 — from frontend/
+npm run dev
+```
+
+---
+
 ## Features
 
 - GitHub repository scanning via URL
-- Multi-ecosystem dependency extraction (`package.json`, `requirements.txt`, and more)
+- Multi-ecosystem dependency extraction (`package.json`, `requirements.txt`, `go.mod`, `Cargo.lock`, `pom.xml`)
 - Cross-source vulnerability matching via Coral SQL
 - CISA KEV active exploitation detection
 - EPSS exploit probability per CVE
@@ -80,3 +140,15 @@ Every finding in a KEVGuard report can be traced back to a single Coral query.
 - Full SQL log — every finding is auditable
 
 ---
+
+## Environment variables
+
+Copy `backend/.env.example` to `backend/.env` and fill in:
+
+```env
+GEMINI_API_KEY=          # Google AI Studio key
+GEMINI_MODEL=gemini-2.0-flash
+
+CORAL_BRIDGE_URL=http://127.0.0.1:8787   # Coral bridge endpoint
+CORAL_BRIDGE_TOKEN=                       # Optional auth token
+```
